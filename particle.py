@@ -21,8 +21,8 @@ class PredictiveShooterParticle:
     def update(self):
         if not self.alive:
             return self.position
-
-        # Apply gravity
+        
+        # Apply gravity1
         self.velocity += self.gravity
 
         # Move particle
