@@ -4,13 +4,14 @@ import particle as part
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
+import random
 
 FRAMES = 30
 
 def run_simulation():
     
     arm = robotarm.Constrained3AxisArm()
-    target_obj = target.CircularTarget()
+    target_obj = target.LinearTarget()
     particles = []
     shot_fired = False
     fig = plt.figure(figsize=(8,8))
@@ -25,68 +26,77 @@ def run_simulation():
     target_dot, = ax.plot([], [], [], 'ro')
     particle_dots, = ax.plot([], [], [], 'bo', markersize=3)
 
-
-    def ready_toShoot(arm, target_pos, tolerance=0.12):
-        shooter_pos = arm.get_end_effector()
-
-        distance = np.linalg.norm(target_pos - shooter_pos)
-
-        # Check if target is within reachable engagement zone
-        return distance > tolerance and distance < 3.0
-
-
     def update(frame):
         nonlocal particles
         nonlocal shot_fired
+        
+        # 1. Handle "Disappeared" state
+        if target_obj.is_hit:
+            new_x = random.uniform(1, 4)
+            new_y = random.uniform(1, 4)
+            # Ensure it's not spawning too close to the center
+            if abs(new_x) < 1.0: new_x = 3.0
+
+            target_obj.spawn([new_x, new_y, 3.0], speed=0.08)
+            shot_fired = False # Reset shooter for the new target
+            print(f"New target spawned at: {new_x:.2f}, {new_y:.2f}")
+
+            # target_dot.set_data([], [])
+            # target_dot.set_3d_properties([])
+
+            return
 
         target_pos = target_obj.update()
+        # 2. Prediction & Tracking
+        # Use the predicted position for the IK, not the current raw target_pos
+        predicted_pos = arm.track_target(target_pos)
+        joint, end = arm.jacobian_ik_update(predicted_pos)
 
-        target_pos = target_obj.update()
-        arm.track_target(target_pos)
-
+        # 3. Shooting Logic
         if not shot_fired:
+            # The arm shoots toward its predicted_target
             arm.shoot(part.PredictiveShooterParticle, particles)
             shot_fired = True
 
-        joint, end = arm.jacobian_ik_update(target_pos)
-        
-        px = []
-        py = []
-        pz = []
+        px, py, pz = [], [], []
 
-        if not any(p.alive for p in particles):
+        # 4. Particle & Collision Logic
+        # Filter out dead particles for the next frame
+        particles = [p for p in particles if p.alive]
+        
+        if not particles:
             shot_fired = False
 
-        # ---- Particle Simulation ----
         for particle in particles:
-            if not particle.alive:
-                continue
-
             particle.update()
-            particle.check_collision(target_pos)
+            
+            # Check if particle hits the active target
+            if particle.check_collision(target_pos):
+                target_obj.hit()
+                particle.alive = False
+                print("🎯 Target Neutralized!")
+            
             particle.check_out_of_bounds()
 
-            px.append(particle.position[0])
-            py.append(particle.position[1])
-            pz.append(particle.position[2])
+            if particle.alive:
+                px.append(particle.position[0])
+                py.append(particle.position[1])
+                pz.append(particle.position[2])
 
-
+        # 5. Rendering Updates
         particle_dots.set_data(px, py)
         particle_dots.set_3d_properties(pz)
         
-        # Column (always upright)
-        column_line.set_data([0,0], [0,0])
+        column_line.set_data([0, 0], [0, 0])
         column_line.set_3d_properties([0, arm.column_height])
 
-        # Hand
-        hand_line.set_data([joint[0], end[0]],
-                           [joint[1], end[1]])
+        hand_line.set_data([joint[0], end[0]], [joint[1], end[1]])
         hand_line.set_3d_properties([joint[2], end[2]])
 
         target_dot.set_data([target_pos[0]], [target_pos[1]])
         target_dot.set_3d_properties([target_pos[2]])
 
-        return column_line, hand_line, target_dot
+        return column_line, hand_line, target_dot, particle_dots
 
     ani = FuncAnimation(fig, update,
                         frames=1000,

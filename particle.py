@@ -2,7 +2,7 @@ import numpy as np
 
 class PredictiveShooterParticle:
     def __init__(self, shooter_pos, target_pos,
-                 projectile_speed=0.3):
+                 projectile_speed=0.55):
 
         self.position = np.array(shooter_pos, dtype=float)
 
@@ -37,7 +37,6 @@ class PredictiveShooterParticle:
         if np.linalg.norm(self.position - target) < threshold:
             self.alive = False
             print("Collision detected with target!")
-
             return True
 
         return False

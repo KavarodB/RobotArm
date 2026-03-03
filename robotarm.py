@@ -2,7 +2,7 @@ import numpy as np
 
 class Constrained3AxisArm:
     def __init__(self):
-        self.column_height = 1.0
+        self.column_height = 0.7
         self.hand_length = 0.5
 
         # Joint states
@@ -11,6 +11,47 @@ class Constrained3AxisArm:
 
         self.last_target = None
         self.predicted_target = None
+
+        self.kf_state = np.zeros(6)
+        self.kf_covariance = np.eye(6) * 1.0
+        self.last_time = None
+
+    def update_filter(self, measurement, dt):
+        # Prediction Step
+        F = np.eye(6)
+        F[0:3, 3:6] = np.eye(3) * dt  # Transition matrix
+        
+        self.kf_state = F @ self.kf_state
+        Q = np.eye(6) * 0.1 # Process noise
+        self.kf_covariance = F @ self.kf_covariance @ F.T + Q
+
+        # Update Step (Correction)
+        H = np.zeros((3, 6))
+        H[:3, :3] = np.eye(3)
+        
+        z = measurement
+        y = z - H @ self.kf_state # Residual
+        S = H @ self.kf_covariance @ H.T + np.eye(3) * 0.01 # Measurement noise
+        K = self.kf_covariance @ H.T @ np.linalg.inv(S)
+        
+        self.kf_state = self.kf_state + K @ y
+        self.kf_covariance = (np.eye(6) - K @ H) @ self.kf_covariance
+
+    def get_intercept_point(self, projectile_speed):
+        """
+        Calculates the point in space where the projectile and target meet.
+        Uses the iterative approach for Time-of-Flight.
+        """
+        target_pos = self.kf_state[0:3]
+        target_vel = self.kf_state[3:6]
+        shooter_pos = self.get_end_effector()
+        
+        t = 0
+        for _ in range(3): # 3 iterations is usually enough for convergence
+            dist = np.linalg.norm(target_pos + target_vel * t - shooter_pos)
+            t = dist / projectile_speed
+            
+        return target_pos + target_vel * t
 
     def get_end_effector(self):
         pivot = np.array([0, 0, self.column_height])
@@ -66,22 +107,15 @@ class Constrained3AxisArm:
 
         return pivot, end
     
-    def track_target(self, target_pos, prediction_gain=1.0):
-
-        target_pos = np.array(target_pos)
-
-        if self.last_target is None:
-            self.predicted_target = target_pos
-        else:
-            # Predict next position using velocity extrapolation
-            velocity = target_pos - self.last_target
-            self.predicted_target = target_pos + prediction_gain * velocity
-
-        self.last_target = target_pos.copy()
-
+    def track_target(self, target_pos, dt=0.1):
+        self.update_filter(np.array(target_pos), dt)
+        
+        # Predict the actual intercept point based on projectile speed
+        # Assume projectile_speed = 5.0 for this example
+        self.predicted_target = self.get_intercept_point(projectile_speed=5.0)
         return self.predicted_target
     
-    def ready_to_shoot(self, projectile_speed=0.5, tolerance=0.12):
+    def ready_to_shoot(self, tolerance=0.12):
 
         if self.predicted_target is None:
             return False
@@ -107,7 +141,5 @@ class Constrained3AxisArm:
         )
 
         particles_list.append(particle)
-
-        print("RobotArm fired prediction shot")
 
         return True

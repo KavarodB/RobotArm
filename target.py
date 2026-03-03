@@ -5,6 +5,7 @@ class InfinityTarget:
         self.t = 0
         self.scale = scale
         self.speed = 0.05  # affects object velocity
+        self.is_hit = False
 
     def update(self):
         self.t += self.speed
@@ -15,8 +16,12 @@ class InfinityTarget:
 
         return np.array([x, y, z])
     
+    def hit(self):
+        """Call this when a projectile collision is detected"""
+        self.is_hit = True
+    
 class CircularTarget:
-    def __init__(self, radius=2.0, z_height=2.0, speed=0.01):
+    def __init__(self, radius=3.0, z_height=2.0, speed=0.05):
         self.radius = radius
         self.z = z_height
         self.t = 0
@@ -30,3 +35,31 @@ class CircularTarget:
         z = self.z
 
         return np.array([x, y, z])
+    
+    def hit(self):
+        """Call this when a projectile collision is detected"""
+        self.is_hit = True
+
+class LinearTarget:
+    def __init__(self, start_pos=[5.0, 5.0, 2.0], speed=0.08):
+        self.spawn(start_pos, speed)
+
+    def spawn(self, pos, speed):
+        self.start_pos = np.array(pos, dtype=float)
+        self.pos = self.start_pos.copy()
+        self.is_hit = False
+        # Randomize direction slightly so every spawn is different
+        dir_x = -1.0 if pos[0] > 0 else 1.0
+        dir_y = -1.0 if pos[1] > 0 else 1.0
+        direction = np.array([dir_x, dir_y, -0.1]) 
+        self.velocity = (direction / np.linalg.norm(direction)) * speed
+
+    def update(self):
+        if self.is_hit: return None
+        self.pos += self.velocity
+        if self.pos[2] < 0.1 or np.linalg.norm(self.pos) > 15.0:
+            self.is_hit = True # Mark for respawn if it goes out of bounds
+        return self.pos
+
+    def hit(self):
+        self.is_hit = True
