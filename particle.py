@@ -41,7 +41,7 @@ class PredictiveShooterParticle:
 
         return False
     
-    def check_out_of_bounds(self, bounds=(-4, 4,-4, 4,0, 5)):
+    def check_out_of_bounds(self, bounds):
         xmin, xmax, ymin, ymax, zmin, zmax = bounds
         x, y, z = self.position
         if not (xmin <= x <= xmax and

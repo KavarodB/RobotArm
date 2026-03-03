@@ -113,9 +113,10 @@ class Constrained3AxisArm:
         # Predict the actual intercept point based on projectile speed
         # Assume projectile_speed = 5.0 for this example
         self.predicted_target = self.get_intercept_point(projectile_speed=5.0)
+        self.projectile_speed = 0.7
         return self.predicted_target
     
-    def ready_to_shoot(self, tolerance=0.12):
+    def ready_to_shoot(self):
 
         if self.predicted_target is None:
             return False
@@ -126,7 +127,7 @@ class Constrained3AxisArm:
             self.predicted_target - shooter_pos
         )
 
-        return distance > tolerance and distance < 6.0
+        return distance > 0.12 and distance < 6.0
     
     def shoot(self, particle_class, particles_list):
 
@@ -137,7 +138,8 @@ class Constrained3AxisArm:
 
         particle = particle_class(
             shooter_pos,
-            self.predicted_target
+            self.predicted_target,
+            self.projectile_speed
         )
 
         particles_list.append(particle)

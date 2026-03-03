@@ -21,6 +21,8 @@ def run_simulation():
     ax.set_ylim(-4,4)
     ax.set_zlim(0,5)
 
+    BOUNDS = [-4,4,-4,4,0,5]
+
     column_line, = ax.plot([], [], [], lw=6)
     hand_line, = ax.plot([], [], [], lw=3)
     target_dot, = ax.plot([], [], [], 'ro')
@@ -32,17 +34,14 @@ def run_simulation():
         
         # 1. Handle "Disappeared" state
         if target_obj.is_hit:
-            new_x = random.uniform(1, 4)
-            new_y = random.uniform(1, 4)
-            # Ensure it's not spawning too close to the center
-            if abs(new_x) < 1.0: new_x = 3.0
+            new_x = random.uniform(3, 5)
+            new_y = random.uniform(-4, 4)
+            new_z = random.uniform(2.5,5)
+            new_speed = random.uniform(0.03,0.1)
 
-            target_obj.spawn([new_x, new_y, 3.0], speed=0.08)
+            target_obj.spawn([new_x, new_y, new_z], speed=new_speed)
             shot_fired = False # Reset shooter for the new target
             print(f"New target spawned at: {new_x:.2f}, {new_y:.2f}")
-
-            # target_dot.set_data([], [])
-            # target_dot.set_3d_properties([])
 
             return
 
@@ -50,7 +49,7 @@ def run_simulation():
         # 2. Prediction & Tracking
         # Use the predicted position for the IK, not the current raw target_pos
         predicted_pos = arm.track_target(target_pos)
-        joint, end = arm.jacobian_ik_update(predicted_pos)
+        joint, end = arm.jacobian_ik_update(target_pos)
 
         # 3. Shooting Logic
         if not shot_fired:
@@ -67,21 +66,22 @@ def run_simulation():
         if not particles:
             shot_fired = False
 
-        for particle in particles:
-            particle.update()
-            
-            # Check if particle hits the active target
-            if particle.check_collision(target_pos):
-                target_obj.hit()
-                particle.alive = False
-                print("🎯 Target Neutralized!")
-            
-            particle.check_out_of_bounds()
+        else:
+            for particle in particles:
+                particle.update()
+                
+                # Check if particle hits the active target
+                if particle.check_collision(target_pos):
+                    target_obj.hit()
+                    particle.alive = False
+                    print("🎯 Target Neutralized!")
+                
+                particle.check_out_of_bounds(BOUNDS)
 
-            if particle.alive:
-                px.append(particle.position[0])
-                py.append(particle.position[1])
-                pz.append(particle.position[2])
+                if particle.alive:
+                    px.append(particle.position[0])
+                    py.append(particle.position[1])
+                    pz.append(particle.position[2])
 
         # 5. Rendering Updates
         particle_dots.set_data(px, py)

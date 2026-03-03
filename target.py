@@ -48,16 +48,13 @@ class LinearTarget:
         self.start_pos = np.array(pos, dtype=float)
         self.pos = self.start_pos.copy()
         self.is_hit = False
-        # Randomize direction slightly so every spawn is different
-        dir_x = -1.0 if pos[0] > 0 else 1.0
-        dir_y = -1.0 if pos[1] > 0 else 1.0
-        direction = np.array([dir_x, dir_y, -0.1]) 
+        direction = np.array([-1.0, -1.0, -0.1]) 
         self.velocity = (direction / np.linalg.norm(direction)) * speed
 
     def update(self):
         if self.is_hit: return None
         self.pos += self.velocity
-        if self.pos[2] < 0.1 or np.linalg.norm(self.pos) > 15.0:
+        if self.pos[2] < 0.1 or np.linalg.norm(self.pos) > 11.0:
             self.is_hit = True # Mark for respawn if it goes out of bounds
         return self.pos
 
