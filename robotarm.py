@@ -35,7 +35,9 @@ class Constrained3AxisArm:
         K = self.kf_covariance @ H.T @ np.linalg.inv(S)
         
         self.kf_state = self.kf_state + K @ y
-        self.kf_covariance = (np.eye(6) - K @ H) @ self.kf_covariance
+    def reset_filter(self):
+        self.kf_state = np.zeros(6)
+        self.kf_covariance = np.eye(6) * 1.0
 
     def get_intercept_point(self, projectile_speed):
         """
@@ -90,10 +92,6 @@ class Constrained3AxisArm:
 
         dq = np.linalg.solve(M, J.T @ error)
 
-        alpha = 0.95
-        dq[0] *= alpha
-        dq[1] *= alpha
-
         # Smooth joint update
         self.theta_base += dq[0] * dt
         self.theta_pitch += dq[1] * dt
@@ -113,7 +111,7 @@ class Constrained3AxisArm:
         # Predict the actual intercept point based on projectile speed
         # Assume projectile_speed = 5.0 for this example
         self.predicted_target = self.get_intercept_point(projectile_speed=5.0)
-        self.projectile_speed = 0.7
+        self.projectile_speed = 5.0  # increased speed
         return self.predicted_target
     
     def ready_to_shoot(self):
@@ -127,7 +125,7 @@ class Constrained3AxisArm:
             self.predicted_target - shooter_pos
         )
 
-        return distance > 0.12 and distance < 6.0
+        return distance > 0.12 and distance < 10.0  # increased max distance
     
     def shoot(self, particle_class, particles_list):
 

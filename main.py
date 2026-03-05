@@ -9,6 +9,7 @@ import random
 FRAMES = 30
 
 def run_simulation():
+    dt = 0.03  # time step for simulation
     
     arm = robotarm.Constrained3AxisArm()
     target_obj = target.LinearTarget()
@@ -40,7 +41,11 @@ def run_simulation():
             new_speed = random.uniform(0.03,0.1)
 
             target_obj.spawn([new_x, new_y, new_z], speed=new_speed)
-            shot_fired = False # Reset shooter for the new target
+            # clear out any lingering projectiles so we don't fire multiple shots
+            particles = []
+            shot_fired = False  # reset shooter for the new target
+            # Reset Kalman filter for quick adaptation to new target
+            arm.reset_filter()
             print(f"New target spawned at: {new_x:.2f}, {new_y:.2f}")
 
             return
@@ -48,8 +53,8 @@ def run_simulation():
         target_pos = target_obj.update()
         # 2. Prediction & Tracking
         # Use the predicted position for the IK, not the current raw target_pos
-        predicted_pos = arm.track_target(target_pos)
-        joint, end = arm.jacobian_ik_update(target_pos)
+        predicted_pos = arm.track_target(target_pos, dt)
+        joint, end = arm.jacobian_ik_update(predicted_pos, dt)
 
         # 3. Shooting Logic
         if not shot_fired:

@@ -22,7 +22,10 @@ class PredictiveShooterParticle:
         if not self.alive:
             return self.position
         
-        # Apply gravity1
+        # remember previous position for segment-based collision checks
+        self.prev_position = self.position.copy()
+
+        # Apply gravity
         self.velocity += self.gravity
 
         # Move particle
@@ -34,10 +37,26 @@ class PredictiveShooterParticle:
         if not self.alive:
             return False
 
+        # check current position first
         if np.linalg.norm(self.position - target) < threshold:
             self.alive = False
             print("Collision detected with target!")
             return True
+
+        # also check along the segment from previous to current
+        if hasattr(self, 'prev_position'):
+            a = self.prev_position
+            b = self.position
+            p = target
+            ab = b - a
+            if np.dot(ab, ab) > 1e-9:
+                t = np.dot(p - a, ab) / np.dot(ab, ab)
+                t = np.clip(t, 0.0, 1.0)
+                closest = a + ab * t
+                if np.linalg.norm(closest - p) < threshold:
+                    self.alive = False
+                    print("Collision detected with target! (segment)")
+                    return True
 
         return False
     
