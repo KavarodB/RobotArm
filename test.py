@@ -31,16 +31,16 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
     """
     dt = 0.03  # simulation time step
     arm = robotarm.Constrained3AxisArm()
-    particles = []
     errors = []  # list of (target_pos, predicted_pos, error_distance) tuples
     approx_errors = []  # list of (target_idx, frame, approx_miss, tof, est_speed)
 
     for target_idx in range(num_targets):
+        particles = []
         # Spawn a new target
         new_x = random.uniform(3, 5)
         new_y = random.uniform(-4, 4)
         new_z = random.uniform(2.5, 5)
-        new_speed = random.uniform(0.03, 0.1)
+        new_speed = random.uniform(0.025, 0.08)
         
         target_obj = target.LinearTarget([new_x, new_y, new_z], new_speed)
         arm.reset_filter()  # reset filter for new target

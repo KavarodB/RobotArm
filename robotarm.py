@@ -4,8 +4,10 @@ class Constrained3AxisArm:
     def __init__(self):
         self.column_height = 0.7
         self.hand_length = 0.5
-        self.projectile_speed = 1.25  # reduced but still practical for interception
+        self.projectile_speed = 1.35  # reduced but still practical for interception
+        self.projectile_gravity = np.array([0.0, 0.0, -0.01])
         self.max_target_speed = 0.12
+        self.lead_blend = 0.72
 
         # Joint states
         self.theta_base = 0.0   # yaw
@@ -86,9 +88,12 @@ class Constrained3AxisArm:
         for _ in range(3): # 3 iterations is usually enough for convergence
             dist = np.linalg.norm(target_pos + target_vel * t - shooter_pos)
             t = dist / projectile_speed
-            t = min(max(t, 0.0), 60.0)
-            
-        return target_pos + target_vel * t
+            t = min(max(t, 0.0), 8.0)
+
+        intercept = target_pos + target_vel * t
+
+        # Blend lead to reduce over-prediction at low projectile speeds.
+        return target_pos + self.lead_blend * (intercept - target_pos)
 
     def get_end_effector(self):
         pivot = np.array([0, 0, self.column_height])

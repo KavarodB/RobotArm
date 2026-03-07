@@ -38,7 +38,7 @@ def run_simulation():
             new_x = random.uniform(3, 5)
             new_y = random.uniform(-4, 4)
             new_z = random.uniform(2.5,5)
-            new_speed = random.uniform(0.025,0.08)
+            new_speed = random.uniform(0.06,0.09)
 
             target_obj.spawn([new_x, new_y, new_z], speed=new_speed)
             # clear out any lingering projectiles so we don't fire multiple shots
@@ -107,7 +107,7 @@ def run_simulation():
                         interval=FRAMES,
                         blit=False)
 
-    plt.title("Constrained 3-Axis Arm Tracking")
+    plt.title("Air Defense Simulation")
     plt.show()
 
 
