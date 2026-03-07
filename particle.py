@@ -33,7 +33,7 @@ class PredictiveShooterParticle:
 
         return self.position
     
-    def check_collision(self, target, threshold=0.15):
+    def check_collision(self, target, threshold=0.35):
         if not self.alive:
             return False
 

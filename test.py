@@ -4,6 +4,26 @@ import particle as part
 import numpy as np
 import random
 
+
+def estimate_prediction_error(arm, target_pos):
+    """
+    Approximate future miss distance using current filter velocity and projectile time-of-flight.
+    This is a diagnostic metric for future tuning, not a control input.
+    """
+    if arm.predicted_target is None:
+        return None
+
+    shooter_pos = arm.get_end_effector()
+    distance_now = np.linalg.norm(target_pos - shooter_pos)
+    tof = distance_now / max(arm.projectile_speed, 1e-6)
+
+    # Use current filter velocity estimate if available.
+    est_target_vel = arm.kf_state[3:6]
+    approx_future_target = target_pos + est_target_vel * tof
+
+    approx_miss = np.linalg.norm(approx_future_target - arm.predicted_target)
+    return approx_miss, tof, np.linalg.norm(est_target_vel)
+
 def test_shooting_accuracy(num_targets=10, frames_per_target=100):
     """
     Test the arm's shooting accuracy without visualization.
@@ -13,6 +33,7 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
     arm = robotarm.Constrained3AxisArm()
     particles = []
     errors = []  # list of (target_pos, predicted_pos, error_distance) tuples
+    approx_errors = []  # list of (target_idx, frame, approx_miss, tof, est_speed)
 
     for target_idx in range(num_targets):
         # Spawn a new target
@@ -26,6 +47,7 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
         
         shot_fired = False
         target_errors = []
+        target_approx_errors = []
         
         for frame in range(frames_per_target):
             if target_obj.is_hit:
@@ -46,6 +68,12 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
                 error_distance = np.linalg.norm(target_pos - predicted_pos)
                 target_errors.append(error_distance)
                 errors.append((target_pos, predicted_pos, error_distance))
+
+                approx = estimate_prediction_error(arm, target_pos)
+                if approx is not None:
+                    approx_miss, tof, est_speed = approx
+                    target_approx_errors.append(approx_miss)
+                    approx_errors.append((target_idx + 1, frame, approx_miss, tof, est_speed))
             
             # Shooting logic
             if not shot_fired and arm.ready_to_shoot():
@@ -67,7 +95,15 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
         # After frames, if not hit, record final error
         if not target_obj.is_hit and target_errors:
             avg_error = np.mean(target_errors)
-            print(f"Target {target_idx+1}: Not hit, avg error: {avg_error:.3f}")
+            if target_approx_errors:
+                avg_approx_error = np.mean(target_approx_errors)
+                print(
+                    f"Target {target_idx+1}: Not hit, "
+                    f"avg raw error: {avg_error:.3f}, "
+                    f"avg approx error: {avg_approx_error:.3f}"
+                )
+            else:
+                print(f"Target {target_idx+1}: Not hit, avg raw error: {avg_error:.3f}")
     
     # Overall statistics
     if errors:
@@ -82,17 +118,33 @@ def test_shooting_accuracy(num_targets=10, frames_per_target=100):
         print(f"Std deviation: {std_error:.3f}")
         print(f"Min error: {min_error:.3f}")
         print(f"Max error: {max_error:.3f}")
+
+        if approx_errors:
+            all_approx = [a[2] for a in approx_errors]
+            mean_approx = np.mean(all_approx)
+            std_approx = np.std(all_approx)
+            p90_approx = np.percentile(all_approx, 90)
+            print("\nApproximation Diagnostics (for next tuning iteration):")
+            print(f"Mean approx miss: {mean_approx:.3f}")
+            print(f"Std approx miss: {std_approx:.3f}")
+            print(f"P90 approx miss: {p90_approx:.3f}")
         
         # Error function: could be mean_error, or a weighted function
         # For improvement, perhaps minimize mean_error + std_error
         error_function = mean_error + 0.5 * std_error
         print(f"Composite error function (mean + 0.5*std): {error_function:.3f}")
         
-        return error_function, errors
+        diagnostics = {
+            "errors": errors,
+            "approx_errors": approx_errors,
+            "mean_error": mean_error,
+            "std_error": std_error,
+        }
+        return error_function, diagnostics
     else:
         print("No errors collected")
-        return 0, []
+        return 0, {"errors": [], "approx_errors": []}
 
 if __name__ == "__main__":
-    error_func, error_list = test_shooting_accuracy()
+    error_func, diagnostics = test_shooting_accuracy()
     print(f"\nFinal error function value: {error_func}")

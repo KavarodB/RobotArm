@@ -41,7 +41,7 @@ class CircularTarget:
         self.is_hit = True
 
 class LinearTarget:
-    def __init__(self, start_pos=[5.0, 5.0, 2.0], speed=0.08):
+    def __init__(self, start_pos=[5.0, 5.0, 2.0], speed=0.065):
         self.spawn(start_pos, speed)
 
     def spawn(self, pos, speed):

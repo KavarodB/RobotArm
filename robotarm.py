@@ -4,6 +4,8 @@ class Constrained3AxisArm:
     def __init__(self):
         self.column_height = 0.7
         self.hand_length = 0.5
+        self.projectile_speed = 1.25  # reduced but still practical for interception
+        self.max_target_speed = 0.12
 
         # Joint states
         self.theta_base = 0.0   # yaw
@@ -15,14 +17,27 @@ class Constrained3AxisArm:
         self.kf_state = np.zeros(6)
         self.kf_covariance = np.eye(6) * 1.0
         self.last_time = None
+        self.filter_initialized = False
+
+        self.shoot_delay = 0.0  # delay before shooting
 
     def update_filter(self, measurement, dt):
+        dt = max(float(dt), 1e-3)
+
+        # Initialize from first observation to avoid large startup transients.
+        if not self.filter_initialized:
+            self.kf_state[0:3] = measurement
+            self.kf_state[3:6] = 0.0
+            self.kf_covariance = np.eye(6) * 0.2
+            self.filter_initialized = True
+            return
+
         # Prediction Step
         F = np.eye(6)
         F[0:3, 3:6] = np.eye(3) * dt  # Transition matrix
         
         self.kf_state = F @ self.kf_state
-        Q = np.eye(6) * 0.1 # Process noise
+        Q = np.eye(6) * 0.01 # Process noise
         self.kf_covariance = F @ self.kf_covariance @ F.T + Q
 
         # Update Step (Correction)
@@ -31,13 +46,32 @@ class Constrained3AxisArm:
         
         z = measurement
         y = z - H @ self.kf_state # Residual
-        S = H @ self.kf_covariance @ H.T + np.eye(3) * 0.01 # Measurement noise
+
+        # If a measurement jumps unrealistically, re-seed the filter.
+        if np.linalg.norm(y) > 2.0:
+            self.kf_state[0:3] = z
+            self.kf_state[3:6] = 0.0
+            self.kf_covariance = np.eye(6) * 0.2
+            return
+
+        S = H @ self.kf_covariance @ H.T + np.eye(3) * 0.02 # Measurement noise
         K = self.kf_covariance @ H.T @ np.linalg.inv(S)
         
         self.kf_state = self.kf_state + K @ y
+        I = np.eye(6)
+        KH = I - K @ H
+        self.kf_covariance = KH @ self.kf_covariance @ KH.T + K @ (np.eye(3) * 0.02) @ K.T
+
+        # Clamp estimated target velocity to keep lead prediction realistic.
+        speed = np.linalg.norm(self.kf_state[3:6])
+        if speed > self.max_target_speed:
+            self.kf_state[3:6] *= self.max_target_speed / speed
+
     def reset_filter(self):
         self.kf_state = np.zeros(6)
         self.kf_covariance = np.eye(6) * 1.0
+        self.filter_initialized = False
+        self.shoot_delay = 0.0  # reset delay on new target
 
     def get_intercept_point(self, projectile_speed):
         """
@@ -48,10 +82,11 @@ class Constrained3AxisArm:
         target_vel = self.kf_state[3:6]
         shooter_pos = self.get_end_effector()
         
-        t = 0
+        t = 0.0
         for _ in range(3): # 3 iterations is usually enough for convergence
             dist = np.linalg.norm(target_pos + target_vel * t - shooter_pos)
             t = dist / projectile_speed
+            t = min(max(t, 0.0), 60.0)
             
         return target_pos + target_vel * t
 
@@ -108,15 +143,17 @@ class Constrained3AxisArm:
     def track_target(self, target_pos, dt=0.1):
         self.update_filter(np.array(target_pos), dt)
         
-        # Predict the actual intercept point based on projectile speed
-        # Assume projectile_speed = 5.0 for this example
-        self.predicted_target = self.get_intercept_point(projectile_speed=5.0)
-        self.projectile_speed = 5.0  # increased speed
+        # Predict intercept with the configured projectile speed.
+        self.predicted_target = self.get_intercept_point(projectile_speed=self.projectile_speed)
+        self.shoot_delay += dt  # increment delay
         return self.predicted_target
     
     def ready_to_shoot(self):
 
         if self.predicted_target is None:
+            return False
+
+        if self.shoot_delay < 0.6:
             return False
 
         shooter_pos = self.get_end_effector()
@@ -141,5 +178,6 @@ class Constrained3AxisArm:
         )
 
         particles_list.append(particle)
+        self.shoot_delay = 0.0
 
         return True

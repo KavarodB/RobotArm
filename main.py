@@ -38,7 +38,7 @@ def run_simulation():
             new_x = random.uniform(3, 5)
             new_y = random.uniform(-4, 4)
             new_z = random.uniform(2.5,5)
-            new_speed = random.uniform(0.03,0.1)
+            new_speed = random.uniform(0.025,0.08)
 
             target_obj.spawn([new_x, new_y, new_z], speed=new_speed)
             # clear out any lingering projectiles so we don't fire multiple shots
@@ -59,8 +59,7 @@ def run_simulation():
         # 3. Shooting Logic
         if not shot_fired:
             # The arm shoots toward its predicted_target
-            arm.shoot(part.PredictiveShooterParticle, particles)
-            shot_fired = True
+            shot_fired = arm.shoot(part.PredictiveShooterParticle, particles)
 
         px, py, pz = [], [], []
 
